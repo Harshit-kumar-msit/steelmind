@@ -18,14 +18,16 @@ COPY . .
 RUN mkdir -p data/chroma_db data/raw_docs data/processed \
              data/synthetic/generators app/ai/anomaly/models
 
-# Download embedding model at build time (avoids cold start delay)
+# Download embedding model at build time
 RUN python -c "from sentence_transformers import SentenceTransformer; \
-               SentenceTransformer('nomic-ai/nomic-embed-text-v1.5', trust_remote_code=True)" || true
+SentenceTransformer('nomic-ai/nomic-embed-text-v1.5', trust_remote_code=True)" || true
 
 # Download reranker model
 RUN python -c "from sentence_transformers import CrossEncoder; \
-               CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', max_length=512)" || true
+CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', max_length=512)" || true
 
-EXPOSE 10000
+# IMPORTANT: Render uses dynamic PORT
+EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
+# FIX: ensure proper process binding + correct port usage
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
