@@ -1,0 +1,114 @@
+version: "3.9"
+
+services:
+  # ─── Databases ───────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: steelmind
+      POSTGRES_PASSWORD: steelmind_pass
+      POSTGRES_DB: steelmind_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U steelmind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  influxdb:
+    image: influxdb:2.7-alpine
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: steelmind
+      DOCKER_INFLUXDB_INIT_PASSWORD: steelmind_pass
+      DOCKER_INFLUXDB_INIT_ORG: steelmind_org
+      DOCKER_INFLUXDB_INIT_BUCKET: sensor_data
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: steelmind-influx-token-dev
+    ports:
+      - "8086:8086"
+    volumes:
+      - influx_data:/var/lib/influxdb2
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # ─── Backend ─────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://steelmind:steelmind_pass@postgres:5432/steelmind_db
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=steelmind-influx-token-dev
+      - INFLUX_ORG=steelmind_org
+      - INFLUX_BUCKET=sensor_data
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=llama-3.3-70b-versatile
+      - CHROMA_PATH=/app/data/chroma_db
+      - SECRET_KEY=${SECRET_KEY:-supersecretkey_change_in_prod}
+      - ENVIRONMENT=development
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_started
+      redis:
+        condition: service_started
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ─── Frontend ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
+    volumes:
+      - ./frontend/src:/app/src
+    depends_on:
+      - backend
+
+  # ─── Background Workers ───────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://steelmind:steelmind_pass@postgres:5432/steelmind_db
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=steelmind-influx-token-dev
+      - INFLUX_ORG=steelmind_org
+      - INFLUX_BUCKET=sensor_data
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=llama-3.3-70b-versatile
+      - CHROMA_PATH=/app/data/chroma_db
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/app:/app/app
+    depends_on:
+      - backend
+    command: python -m app.services.worker
+
+volumes:
+  postgres_data:
+  influx_data:
+  redis_data:
