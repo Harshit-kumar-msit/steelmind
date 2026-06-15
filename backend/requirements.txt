@@ -57,3 +57,4 @@ loguru==0.7.2
 tenacity==9.0.0
 orjson==3.10.7
 rich==13.8.1
+einops

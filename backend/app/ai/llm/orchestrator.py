@@ -82,11 +82,17 @@ def _build_system_prompt(
             lines.append(f"  {k}: {v}")
         sensor_str = "\n".join(lines)
 
+    learned_block = ""
+    if feedback_block:
+        learned_block = "LEARNED CORRECTIONS:\n" + feedback_block
+
+    recent_block = ""
+    if logbook_context:
+        recent_block = "RECENT FLOOR OBSERVATIONS:\n" + logbook_context
+
     system = f"""You are SteelMind, an agentic AI maintenance copilot for {plant_name}.
 
-You have access to tools that query live plant data. Use them autonomously to gather
-the information you need before answering. Do NOT ask the engineer to tell you data
-you can fetch yourself — just call the tool.
+You have access to tools that query live plant data. Use them autonomously.
 
 CURRENT CONTEXT:
 - Equipment in focus: {ctx.equipment_id or 'none'} — {ctx.equipment_name}
@@ -97,34 +103,27 @@ CURRENT CONTEXT:
 - Timestamp: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
 
 LIVE SENSOR SNAPSHOT:
-{sensor_str or 'Not available — use get_anomaly_detail tool to fetch live readings'}
+{sensor_str or 'Not available — use get_anomaly_detail tool'}
 
-{('RECENT FLOOR OBSERVATIONS:\n' + logbook_context) if logbook_context else ''}
+{recent_block}
 
 TOOL USE GUIDELINES:
-1. For any question about equipment health → call get_equipment_health or get_anomaly_detail
-2. For RUL / time to failure → call get_rul_breakdown
-3. For repair discussions → call check_spare_parts first
-4. For root cause analysis → call get_anomaly_detail + get_maintenance_logs + search_knowledge_base
-5. For maintenance planning → call get_plant_priority_queue + get_work_orders + check_spare_parts
-6. For procedures/standards → call search_knowledge_base
-7. Chain tools as needed — multiple calls in one turn is expected and encouraged
-8. After gathering data, give a concise, actionable answer
-9. Cite knowledge base results using [DOC:chunk_id] in your answer
+1. For health → get_equipment_health / get_anomaly_detail
+2. For RUL → get_rul_breakdown
+3. For repair → check_spare_parts first
+4. For RCA → combine anomaly + logs + knowledge base
+5. Chain tools freely when needed
 
 ANSWER GUIDELINES:
-- Be specific: name the part, cite the value, reference the ISO limit
-- Lead with the most important finding
-- End with a clear recommended action
-- For engineers: include step numbers and part numbers
-- For managers: lead with cost/risk impact
+- Be specific and actionable
+- Cite sources when available
+- End with recommendation
 
 {role_block}
 
-{('LEARNED CORRECTIONS: ' + feedback_block) if feedback_block else ''}
+{learned_block}
 """
     return system
-
 
 # ─── Orchestrator ──────────────────────────────────────────────────────────────
 
