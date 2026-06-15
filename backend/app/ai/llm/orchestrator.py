@@ -121,7 +121,7 @@ ANSWER GUIDELINES:
 
 {role_block}
 
-{('LEARNED CORRECTIONS:\n' + feedback_block) if feedback_block else ''}
+{('LEARNED CORRECTIONS: ' + feedback_block) if feedback_block else ''}
 """
     return system
 
