@@ -1,5 +1,5 @@
 # SteelMind
-
+https://steelmind-frontend-ten.vercel.app
 ## Intelligent Maintenance Decision Support System for Steel Manufacturing
 
 SteelMind is an AI-powered maintenance copilot designed to assist maintenance engineers in diagnosing equipment failures, identifying probable root causes, prioritizing interventions, and supporting proactive maintenance planning within steel manufacturing environments.
